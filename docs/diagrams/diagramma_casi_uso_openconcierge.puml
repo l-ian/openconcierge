@@ -1,0 +1,78 @@
+@startuml diagramma_casi_uso_openconcierge.png
+
+title Diagramma dei Casi d'Uso di OpenConcierge
+
+<style>
+rectangle {
+  LineColor #319FFF
+  FontStyle plain
+}
+
+usecase {
+  LineColor #319FFF
+}
+</style>
+
+skinparam linetype ortho
+skinparam padding 10
+skinparam ranksep 50
+skinparam nodesep 65 
+
+together {
+  actor "**Utente Registrato**" as user
+  actor "**Utente Non Registrato**" as guest
+}
+
+' User inherits base permissions from guest
+guest <|-- user
+
+' System boundary
+rectangle "**Sistema OpenConcierge**" {
+
+  ' First logical block
+  rectangle "**Account**" as account {
+    usecase "Autenticazione\n(Sign-in)" as log_in
+    usecase "Registrazione\n(Sign-up)" as sign_up 
+    usecase "Cancella Account" as delete
+  }
+
+  ' Second logical block
+  rectangle "**Consultazione**\n(Accesso in Lettura)" as browse {
+    usecase "Ricerca Camere e Servizi" as search
+    usecase "Verifica Disponibilità Data" as date
+    usecase "Stato Prenotazione" as status
+  }
+
+  ' Third logical block
+  rectangle "**Gestione**\n(Accesso in Scrittura)" as management {
+    usecase "Prenotazione\n(Pagamento Presso la Struttura)" as booking
+    usecase "Aggiungi Servizi\n(Ristorante, Spa, ecc.)" as service
+    usecase "Cancella Prenotazione" as cancel
+  }
+
+  ' Force element positions
+  browse --[hidden]-- account
+  management -[hidden]- account
+  search -[hidden]-- status
+  delete -[hidden]-- sign_up
+
+  ' Links
+  guest - sign_up
+  guest - search
+
+  user - delete
+  user - booking
+  user - cancel 
+  user - service
+  user - status
+  
+  search .right.> date : <<include>>
+  status ..> log_in : <<include>>
+  booking ..> log_in : <<include>>
+  delete ..> log_in : <<include>>
+  cancel ..> log_in : <<include>>
+  service ..> log_in : <<include>>
+  service ..> booking : <<extend>> 
+}
+
+@enduml

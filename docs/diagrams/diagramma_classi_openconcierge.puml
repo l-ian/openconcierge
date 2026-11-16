@@ -1,0 +1,74 @@
+@startuml diagramma_classi_openconcierge.png
+
+title **Diagramma delle Classi di OpenConcierge**
+
+hide empty members
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam padding 8
+skinparam nodesep 60
+skinparam ranksep 60
+
+<style>
+  root {
+    FontStyle plain
+  }
+  class, package {
+    LineColor #319FFF
+  }
+</style>
+
+package "**Host / Orchestration Layer**" as host_pkg {
+  class "**Harness**" as harness {
+    - session_id : str
+    - current_user_id : int | None
+    - conversation_history : list[dict]
+    - tools_schema : list[dict]
+    --
+    + handle_message(prompt: str) : str
+    - execute_tool_call(tool_name: str, args: dict) : dict
+    - write_tokens(action: str, outcome: str, input_tokens: int, output_tokens: int) : None
+  }
+
+  class "**LLMClient**" as llm {
+    - model_name : str
+    - system_prompt : str
+    --
+    + generate_response(messages: list[dict], tools_schema: list[dict]) : dict
+  }
+}
+
+package "**MCP Server Layer**" as mcp_pkg {
+  class "**MCPServer**" as mcp {
+    - server_name : str
+    --
+    + register_user(user_data: dict) : dict
+    + authenticate_user(email: str, password: str) : dict
+    + delete_account(user_id: int) : dict
+    + search_catalog() : dict
+    + check_availability(category: str, check_in: str, check_out: str) : dict
+    + get_booking_status(user_id: int, booking_id: int) : dict
+    + create_booking(user_id: int, room_id: int, check_in: str, check_out: str) : dict
+    + add_extra_service(user_id: int, booking_id: int, service_id: int, quantity: int) : dict
+    + cancel_booking(user_id: int, booking_id: int) : dict
+    + write_activity(user_id: int | None, action: str, outcome: str, input_tokens: int, output_tokens: int) : dict
+    - hash_password(plain_password: str) : str
+    - verify_password(plain_password: str, password_hash: str) : bool
+  }
+
+  class "**Database**" as db {
+    - db_path : str
+    --
+    - get_connection() : Connection
+    + execute_query(query: str, params: tuple) : list[dict]
+    + execute_write(query: str, params: tuple) : int
+  }
+}
+
+' Relationships
+harness *-- "1" llm : "interroga"
+harness ..> mcp : "invoca tool (MCP JSON-RPC)"
+mcp *-- "1" db : "incapsula accesso DB"
+
+@enduml

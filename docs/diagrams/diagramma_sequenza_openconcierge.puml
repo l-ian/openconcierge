@@ -1,0 +1,132 @@
+@startuml diagramma_sequenza_openconcierge.png
+
+title **Diagramma di Sequenza di OpenConcierge**
+
+<style>
+  ' Override default bold styling and apply a regular font weight globally
+  root {
+    FontSize 16
+    FontStyle plain
+  }
+  participant, actor, database {
+    LineColor #319FFF
+    Margin 20
+  }
+  .small_note {
+    MaximumWidth 240
+  }
+  .medium_note {
+    MaximumWidth 400
+  }
+  .alt_label {
+  HorizontalAlignment center
+  BackgroundColor transparent
+  LineColor transparent
+  Shadowing 0
+}
+</style>
+
+actor "**Utente Registrato**" as user
+participant "**Agent Harness**\n(Host / MCP Client)" as harness
+participant "**Modello LLM**" as llm
+participant "**Server MCP**\n(OpenConcierge)" as mcp
+database "**Database SQLite**" as db
+
+== **Fase 1: Verifica Disponibilità (Consultazione)** ==
+
+user -> harness : Richiesta in linguaggio naturale
+note right of user <<small_note>>: <color:#319FFF><&arrow-thick-top,scale=2.5></color>Esempio: "C'è una Suite libera dal 20 al 22 luglio?"
+
+activate harness
+
+harness -> llm : Invia prompt + schemi tool MCP
+activate llm
+llm --> harness : Tool call
+note right of harness <<medium_note>>: <color:#319FFF><&arrow-thick-top,scale=2.5></color>Richiede l'esecuzione del tool con i parametri estratti + metadati token (input/output)
+deactivate llm
+
+harness -> mcp : Controlla la disponibilità
+activate mcp
+mcp -> db : Interroga disponibilità camere
+activate db
+db --> mcp : Restituisce camere disponibili
+deactivate db
+mcp --> harness : Risultato JSON
+note right of harness <<medium_note>>: <color:#319FFF><&arrow-thick-top,scale=2.5></color>Esempio: room_id: 101, base_rate: 250.0
+deactivate mcp
+
+harness -> llm : Invia risultato del tool nel contesto
+activate llm
+llm --> harness : Genera risposta naturale + metadati token (input/output)
+deactivate llm
+
+harness -> mcp : Chiama log attività (con totale token consumati)
+activate mcp
+mcp -> db : Registra log attività e token
+activate db
+db --> mcp : OK
+deactivate db
+mcp --> harness : Log registrato
+deactivate mcp
+
+harness --> user : Risposta in linguaggio naturale
+note right of user <<small_note>>: <color:#319FFF><&arrow-thick-top,scale=2.5></color>Esempio: "Sì, la Suite 101 è disponibile a 250€ a notte. Vuoi prenotarla?"
+deactivate harness
+
+== **Fase 2: Conferma e Creazione Prenotazione (Gestione)** ==
+
+user -> harness : Interazione in linguaggio naturale
+note right of user: <color:#319FFF><&arrow-thick-top,scale=2.5></color>"Sì, confermo la prenotazione."
+activate harness
+
+harness -> llm : Invia conferma utente + contesto sessione + schemi tool MCP
+activate llm
+llm --> harness : Tool call
+note right of harness <<medium_note>>: <color:#319FFF><&arrow-thick-top,scale=2.5></color>Richiede l'esecuzione del tool di prenotazione + metadati token (input/output)
+deactivate llm
+
+harness -> mcp : Crea nuova prenotazione
+activate mcp
+mcp -> db : Salva nuova prenotazione
+activate db
+
+alt
+  ' Workaround to improve document readability by preventing text and lines from overlapping
+  note over harness,llm <<alt_label>> : **[Scrittura completata con successo]**
+  db --> mcp : Conferma salvataggio
+  note right of mcp:<color:#319FFF><&arrow-thick-top,scale=2.5></color>Esempio: booking_id: 42
+  mcp --> harness : Risultato JSON (outcome: SUCCESS)
+else 
+  ' Same workaround as above
+  note over harness,llm <<alt_label>> : **[Errore di scrittura]**
+  db --> mcp : Errore SQL / Vincolo violato
+  note right of mcp <<small_note>>:<color:#319FFF><&arrow-thick-top,scale=2.5></color>Esempio: camera non più disponibile / DB lock
+  mcp --> harness : Risultato JSON (outcome: ERROR)
+end
+deactivate db
+deactivate mcp
+
+harness -> llm : Invia esito operazione
+note right of harness:<color:#319FFF><&arrow-thick-top,scale=2.5></color>SUCCESS o ERROR
+activate llm
+llm --> harness : Genera messaggio finale + metadati token (input/output)
+note right of harness:<color:#319FFF><&arrow-thick-top,scale=2.5></color>Conferma o scuse
+deactivate llm
+
+harness -> mcp : Chiama log attività
+note right of harness:<color:#319FFF><&arrow-thick-top,scale=2.5></color>Esito + totale token consumati
+activate mcp
+mcp -> db : Registra log attività e token
+activate db
+db --> mcp : OK
+deactivate db
+mcp --> harness : Log registrato
+deactivate mcp
+
+harness --> user : Risposta finale in linguaggio naturale
+note right of user <<small_note>>: <color:#319FFF><&arrow-thick-top,scale=2.5></color>Esempio (Successo): "Prenotazione #42 confermata! Pagherai direttamente in struttura."
+
+deactivate harness
+
+@enduml
+
